@@ -1,0 +1,1 @@
+# squirrel-coatcolor-selection
