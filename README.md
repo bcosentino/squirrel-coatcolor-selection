@@ -1,6 +1,6 @@
 **This reposotory contains data and code for the following manuscript:**
 
-Cosentino, B.J., Vanek, J.P., and J.P. Gibbs. Rural selection drives the evolution of an urban-rural cline in coat color in gray squirre.s
+Cosentino, B.J., Vanek, J.P., and J.P. Gibbs. Rural selection drives the evolution of an urban-rural cline in coat color in gray squirrels
 
 The following files are included:
 
