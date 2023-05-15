@@ -1,5 +1,5 @@
-library(tidyverse) #version 1.3.1 used for analysis
-library(survival) #version 3.2.13 used for analysis
+library(tidyverse) #version 2.0.0 used for analysis
+library(survival) #version 3.5.3 used for analysis
 library(survminer) #version 0.4.9 used for analysis
 
 #####Variables in survival.Rdata#####
@@ -8,10 +8,12 @@ library(survminer) #version 0.4.9 used for analysis
 #END_DATE = date of final status
 #MORPH = color morph
 #SEX = sex
+#MASS = mass in grams
 #CSIZE = collar size (14 or 21 g)
 #LANDSCAPE = urban or rural environment
 #DAYS.ACTIVE = number of days between translocation and final status recorded
 #STATUS = final status (confirmed mortality, probable mortality, possible mortality, missing, active)
+#tmp.start = daily mean temperature averaged for the first week post.translocation (Celcius)
 
 #####Analysis with confirmed and probable classified as true mortalities#####
 
@@ -29,10 +31,13 @@ data$CSIZE.cat <- ifelse(data$CSIZE == 14, 0, 1)
 
 #Cox Proportional Hazards Regression
 
-#Assess for effecs of sex and collar size
-summary(coxph(Surv(DAYS.ACTIVE, mortality) ~ LANDSCAPE + MORPH + LANDSCAPE * MORPH + CSIZE.cat + SEX, data = data))
+#Assess for effects of sex, body mass, collar size, and temperature
+fm1 <- coxph(Surv(DAYS.ACTIVE, mortality) ~ LANDSCAPE + MORPH + LANDSCAPE * MORPH + CSIZE.cat + SEX + MASS + tmp.start + I(tmp.start^2), data = data)
+fm2 <- coxph(Surv(DAYS.ACTIVE, mortality) ~ LANDSCAPE + MORPH + CSIZE.cat + SEX + MASS + tmp.start + I(tmp.start^2), data = data)
+anova(fm1, fm2) #likelihood ratio test for Landscape * Morph interaction
 
-#Full model with morph*landscape interaction
+
+#Reduced model with morph, landscape, and morph*landscape interaction
 m.cox <-
   coxph(
     formula = Surv(DAYS.ACTIVE, mortality) ~ LANDSCAPE + MORPH + LANDSCAPE * MORPH,
@@ -70,6 +75,9 @@ cox.eff
 cox.eff <- mutate(cox.eff, MORPHXLAND = paste(MORPH, LANDSCAPE),
                   MORPHXLAND = factor(MORPHXLAND))
 
+exp(cox.eff$pred) #exponentiate for hazard ratio scale
+exp(cox.eff$lo)
+exp(cox.eff$up)
 
 #Survivial probabilities and log rank tests
 
@@ -82,7 +90,7 @@ summary(rural_model)
 rural_graph <- survminer::ggsurvplot(fit = rural_model,
                                      data = data_rural,
                                      palette = c("gray", "black"),
-                                     linetype = c("solid", "dashed"),
+                                     linetype = c("solid", "solid"),
                                      conf.int = F,
                                      risk.table = F,
                                      size = 1,
@@ -109,7 +117,7 @@ summary(urban_model)
 urban_graph <- survminer::ggsurvplot(fit = urban_model,
                                      data = data_urban,
                                      palette = c("gray", "black"),
-                                     linetype = c("solid", "dashed"),
+                                     linetype = c("solid", "solid"),
                                      conf.int = F,
                                      risk.table = F,
                                      size = 1,
@@ -147,10 +155,12 @@ data$CSIZE.cat <- ifelse(data$CSIZE == 14, 0, 1)
 
 #Cox Proportional Hazards Regression
 
-#Assess for effecs of sex and collar size
-summary(coxph(Surv(DAYS.ACTIVE, mortality) ~ LANDSCAPE + MORPH + LANDSCAPE * MORPH + CSIZE.cat + SEX, data = data))
+#Assess for effects of sex, body mass, collar size, and temperature
+fm1 <- coxph(Surv(DAYS.ACTIVE, mortality) ~ LANDSCAPE + MORPH + LANDSCAPE * MORPH + CSIZE.cat + SEX + MASS + tmp.start + I(tmp.start^2), data = data)
+fm2 <- coxph(Surv(DAYS.ACTIVE, mortality) ~ LANDSCAPE + MORPH + CSIZE.cat + SEX + MASS + tmp.start + I(tmp.start^2), data = data)
+anova(fm1, fm2) #likelihood ratio test for Landscape * Morph interaction
 
-#Full model with morph*landscape interaction
+#Reduced model with morph, landscape, morph*landscape, and collar size
 m.cox <-
   coxph(
     formula = Surv(DAYS.ACTIVE, mortality) ~ LANDSCAPE + MORPH + LANDSCAPE * MORPH + CSIZE.cat,
@@ -200,7 +210,7 @@ summary(rural_model)
 rural_graph <- survminer::ggsurvplot(fit = rural_model,
                                      data = data_rural,
                                      palette = c("gray", "black"),
-                                     linetype = c("solid", "dashed"),
+                                     linetype = c("solid", "solid"),
                                      conf.int = F,
                                      risk.table = F,
                                      size = 1,
