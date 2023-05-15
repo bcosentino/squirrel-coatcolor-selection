@@ -11,25 +11,24 @@ load("cline.Rdata")
 #nsurveys.ct = total number of surveys for count data
 #distance = distance from city center in km
 #dist.city.s = standardized distance from city center
-#date.occ = survey dates for occupancy data ordered 0 - 392 
-#date.occ.s = standardized survey dates for occupancy data
-#date.ct = survey dates for count data
-#date.ct.s = standardized survey dates for occupancy data
+#temp.avg = mean daily temp (Celcius) for survey period inclusive of camera & count surveys (9/16/21-10/18/22)
+#temp.avg.occ = standardized mean daily temperature covariate for occupancy surveys
+#temp.avg.ct = standardized mean daily temperature covariate for count surveys
 #Xdist = sequence of distances for prediction
-#Xdate = sequence of standardized dates for prediction
+#Xtemp = sequence of mean daily temps for prediction
 
 #####bundle data#####
-win.data <- list(yg.occ = y.occ.g, ym.occ =y.occ.m, 
+jags.data <- list(yg.occ = y.occ.g, ym.occ =y.occ.m, 
                  yg.ct = y.ct.g, ym.ct =y.ct.m, 
                  nsites = nsites,
                  nsurveys.occ = nsurveys.occ, nsurveys.ct = nsurveys.ct, 
                  distance = dist.city.s,
-                 date.occ = date.occ.s, date.ct = date.ct.s,
+                 tmp.occ = temp.avg.occ, tmp.ct = temp.avg.ct,
                  Xdist = seq(min(dist.city.s), max(dist.city.s), length.out = 100),
-                 Xdate = seq(min(c(date.occ.s, date.ct.s)), max(c(date.occ.s, date.ct.s)), length.out=100))
-str(win.data)
+                 Xtemp = seq(min(c(temp.avg.occ, temp.avg.ct)), max(c(temp.avg.occ, temp.avg.ct)), length.out=100))
+str(jags.data)
 
-#####specify model in BUGS language#####
+#####specify model in JAGS language#####
 sink("cline.txt")
 cat("
     model {
@@ -38,11 +37,9 @@ cat("
     
     for(m in 1:2) {                   #m = morphs, 1 = melanic 2 = gray
     alpha0[m] <- logit(mean.p[m])     #detection intercept
-    mean.p[m] ~ dunif(0, 1)           #mean detection probabilty at value = 0 for covariates (mean date)
-    alpha1[m] ~ dnorm(0, 0.001)       #detection slope for date
-    alpha2[m] ~ dnorm(0, 0.001)       #detection slope for date (quadratic term)
-    alpha3[m] ~ dnorm(0, 0.001)       #detection slope for date (3rd-order term)
-    alpha4[m] ~ dnorm(0, 0.001)       #detection slope for date (4tth-order term)
+    mean.p[m] ~ dunif(0, 1)           #mean detection probabilty at value = 0 for covariates (mean daily temperature)
+    alpha1[m] ~ dnorm(0, 0.001)       #detection slope for temperature
+    alpha2[m] ~ dnorm(0, 0.001)       #detection slope for temperature (quadratic term)
     }
     
     beta0.abu ~ dnorm(0, 0.001)       #abundance intercept
@@ -69,19 +66,15 @@ cat("
     for(j in 1:nsurveys.occ) {
     ym.occ[i,j] ~ dbern(pstar.m.occ[i,j])                         #observed detections for melanic morph              
     pstar.m.occ[i,j] <- 1-(1-pdet.m.occ[i,j])^Nm[i]               #Pstar = P(detect melanic morph), pdet = ind. detection prob.
-    logit(pdet.m.occ[i,j]) <- alpha0[1] +                         #ind. detection prob. as a function of survey date
-                              alpha1[1]*date.occ[i,j] +
-                              alpha2[1]*pow(date.occ[i,j], 2) +
-                              alpha3[1]*pow(date.occ[i,j], 3) + 
-                              alpha4[1]*pow(date.occ[i,j], 4)
+    logit(pdet.m.occ[i,j]) <- alpha0[1] +                         #ind. detection prob. as a function of survey temperature
+                              alpha1[1]*tmp.occ[i,j] +
+                              alpha2[1]*pow(tmp.occ[i,j], 2)
                                 
     yg.occ[i,j] ~ dbern(pstar.g.occ[i,j])                         #observed detections for gray morph         
     pstar.g.occ[i,j] <- 1-(1-pdet.g.occ[i,j])^Ng[i]               #Pstar = P(detect gray morph), pdet = ind. detection prob.     
-    logit(pdet.g.occ[i,j]) <- alpha0[2] +                         #ind. detection prob. as a function of survey date
-                              alpha1[2]*date.occ[i,j] +
-                              alpha2[2]*pow(date.occ[i,j], 2) +
-                              alpha3[2]*pow(date.occ[i,j], 3) +
-                              alpha4[2]*pow(date.occ[i,j], 4)
+    logit(pdet.g.occ[i,j]) <- alpha0[2] +                         #ind. detection prob. as a function of survey temperature
+                              alpha1[2]*tmp.occ[i,j] +
+                              alpha2[2]*pow(tmp.occ[i,j], 2)
     }
     }
     
@@ -89,18 +82,14 @@ cat("
     for(i in 1:nsites) {
     for(j in 1:nsurveys.ct) {
     ym.ct[i,j] ~ dbinom(pdet.m.ct[i,j], Nm[i])                   #observed melanic count; pdet = ind detection prob.
-    logit(pdet.m.ct[i,j]) <- alpha0[1] +                         #ind. detection prob. as a function of survey date
-                             alpha1[1]*date.ct[i,j] +
-                             alpha2[1]*pow(date.ct[i,j], 2) +
-                             alpha3[1]*pow(date.ct[i,j], 3) +
-                             alpha4[1]*pow(date.ct[i,j], 4)
+    logit(pdet.m.ct[i,j]) <- alpha0[1] +                         #ind. detection prob. as a function of survey temperature
+                             alpha1[1]*tmp.ct[i,j] +
+                             alpha2[1]*pow(tmp.ct[i,j], 2)
     
     yg.ct[i,j] ~ dbinom(pdet.g.ct[i,j], Ng[i])                   #observed gray count; pdet = ind detection prob.
-    logit(pdet.g.ct[i,j]) <- alpha0[2] +                         #ind. detection prob. as a function of survey date
-                             alpha1[2]*date.ct[i,j] +
-                             alpha2[2]*pow(date.ct[i,j], 2) +
-                             alpha3[2]*pow(date.ct[i,j], 3) + 
-                             alpha4[2]*pow(date.ct[i,j], 4)
+    logit(pdet.g.ct[i,j]) <- alpha0[2] +                         #ind. detection prob. as a function of survey temperature
+                             alpha1[2]*tmp.ct[i,j] +
+                             alpha2[2]*pow(tmp.ct[i,j], 2)
     }
     }
     
@@ -123,14 +112,14 @@ cat("
       
     }
     
-    #predicted ind. detection as a function of survey date
+    #predicted ind. detection probability as a function of survey temperature
     for(k in 1:100) {
     
       #melanic morph
-      logit(pdet.m.pred[k]) <- alpha0[1] + alpha1[1]*Xdate[k] + alpha2[1]*pow(Xdate[k], 2) + alpha3[1]*pow(Xdate[k], 3) + alpha4[1]*pow(Xdate[k], 4)
+      logit(pdet.m.pred[k]) <- alpha0[1] + alpha1[1]*Xtemp[k] + alpha2[1]*pow(Xtemp[k], 2)
       
       #gray morph
-      logit(pdet.g.pred[k]) <- alpha0[2] + alpha1[2]*Xdate[k] + alpha2[2]*pow(Xdate[k], 2) + alpha3[2]*pow(Xdate[k], 3) + alpha4[1]*pow(Xdate[k], 4)
+      logit(pdet.g.pred[k]) <- alpha0[2] + alpha1[2]*Xtemp[k] + alpha2[2]*pow(Xtemp[k], 2)
     }
     
     #proportion melanic at each sampled site
@@ -152,7 +141,7 @@ inits <- function(){list(Nm = apply(cbind(y.m.max.occ,y.m.max.ct), 1, max),
                          N = apply(cbind(y.m.max.occ,y.m.max.ct), 1, max) + apply(cbind(y.g.max.occ,y.g.max.ct), 1, max))}
 
 #Parameters monitored
-params <- c("mean.p", "alpha0", "alpha1", "alpha2", "alpha3", "alpha4",
+params <- c("mean.p", "alpha0", "alpha1", "alpha2",
             "mean.beta0.abu", "beta0.abu", "beta1.abu",
             "mean.pm", "beta0.pm", "beta1.pm",
             "lam.pred", "lam.g.pred", "lam.m.pred", "cline.pred",
@@ -162,5 +151,6 @@ params <- c("mean.p", "alpha0", "alpha1", "alpha2", "alpha3", "alpha4",
 #MCMC
 ni <- 12000 ; nt <- 10 ;  nb <- 2000 ; nc <- 3
 
-model.out <- jags(win.data, inits, params, "cline.txt", n.chains=nc, n.thin = nt, n.iter = ni, n.burnin = nb)
+model.out <- jags(jags.data, inits, params, "cline.txt", n.chains=nc, n.thin = nt, n.iter = ni, n.burnin = nb,
+                  parallel = TRUE, n.cores = 3)
 
